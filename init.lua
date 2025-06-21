@@ -161,6 +161,68 @@ vim.opt.scrolloff = 10
 -- See `:help 'confirm'`
 vim.opt.confirm = true
 
+-- 全局缩进设置
+vim.opt.expandtab = true -- 使用空格代替 Tab
+vim.opt.tabstop = 4 -- tab 宽度（逻辑缩进）
+vim.opt.shiftwidth = 4 -- 自动缩进宽度
+vim.opt.softtabstop = 4 -- 编辑时按 Tab 显示的宽度
+vim.opt.smartindent = true -- 自动对齐
+vim.opt.autoindent = true -- 自动继承缩进
+local indent_settings = {
+  cpp = { shiftwidth = 4, tabstop = 4, softtabstop = 4, did_indent_sleuth = 1 },
+  c = { shiftwidth = 4, tabstop = 4, softtabstop = 4 },
+  lua = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+  python = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+  javascript = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+  typescript = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+  json = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+  html = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+  css = { shiftwidth = 2, tabstop = 2, softtabstop = 2 },
+}
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = '*',
+  callback = function(args)
+    vim.defer_fn(function()
+      local ft = vim.bo[args.buf].filetype
+      local config = indent_settings[ft]
+      if config then
+        local did_indent_sleuth = config['did_indent_sleuth']
+        if did_indent_sleuth then
+          -- cpp 类成员的限定符空2格，容易被sleuth误判，因此排除
+          vim.g.did_indent_sleuth = did_indent_sleuth
+        end
+        vim.bo[args.buf].shiftwidth = config.shiftwidth
+        vim.bo[args.buf].tabstop = config.tabstop
+        vim.bo[args.buf].softtabstop = config.softtabstop
+        vim.bo[args.buf].expandtab = true
+      end
+    end, 0)
+  end,
+})
+
+vim.opt.termguicolors = true
+
+-- 恢复光标到上次离开位置
+vim.api.nvim_create_autocmd('BufReadPost', {
+  callback = function()
+    local mark = vim.api.nvim_buf_get_mark(0, '"')
+    local lcount = vim.api.nvim_buf_line_count(0)
+    if mark[1] > 0 and mark[1] <= lcount then
+      vim.api.nvim_win_set_cursor(0, mark)
+    end
+  end,
+})
+
+-- 浮出诊断信息
+vim.cmd [[autocmd CursorHold * lua vim.diagnostic.open_float(nil, {focus=false})]]
+
+-- 折叠
+vim.o.foldmethod = 'indent' -- 或者 "syntax", "expr", "manual"
+vim.o.foldenable = true -- 启用折叠
+vim.o.foldlevel = 99 -- 默认展开
+vim.o.foldlevelstart = 99
+vim.o.foldcolumn = '1' -- 显示折叠列
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -177,7 +239,8 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 --
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
-vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+--vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -199,6 +262,10 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 -- vim.keymap.set("n", "<C-S-l>", "<C-w>L", { desc = "Move window to the right" })
 -- vim.keymap.set("n", "<C-S-j>", "<C-w>J", { desc = "Move window to the lower" })
 -- vim.keymap.set("n", "<C-S-k>", "<C-w>K", { desc = "Move window to the upper" })
+
+-- 保存
+vim.keymap.set('n', '<C-z>', ':w<CR>', { desc = 'Move focus to the upper window' })
+vim.keymap.set('i', '<C-z>', '<Esc>:w<CR>a', { desc = 'Move focus to the upper window' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -439,7 +506,7 @@ require('lazy').setup({
         -- You can pass additional configuration to Telescope to change the theme, layout, etc.
         builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
           winblend = 10,
-          previewer = false,
+          previewer = true,
         })
       end, { desc = '[/] Fuzzily search in current buffer' })
 
@@ -731,6 +798,10 @@ require('lazy').setup({
           end,
         },
       }
+
+      -- 自定义 lsp
+      require('lspconfig').clangd.setup {}
+      require('lspconfig').pyright.setup {}
     end,
   },
 
@@ -771,6 +842,9 @@ require('lazy').setup({
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        json = { 'fixjson' },
+        cpp = { 'clang_format' },
+        c = { 'clang_format' },
       },
     },
   },
@@ -795,13 +869,17 @@ require('lazy').setup({
           -- `friendly-snippets` contains a variety of premade snippets.
           --    See the README about individual language/framework/plugin snippets:
           --    https://github.com/rafamadriz/friendly-snippets
-          -- {
-          --   'rafamadriz/friendly-snippets',
-          --   config = function()
-          --     require('luasnip.loaders.from_vscode').lazy_load()
-          --   end,
-          -- },
+          --[[ {
+            'rafamadriz/friendly-snippets',
+            config = function()
+              require('luasnip.loaders.from_vscode').lazy_load()
+            end,
+          }, ]]
         },
+        -- 添加自定义片段
+        config = function()
+          require('luasnip.loaders.from_vscode').lazy_load { paths = { './my-snippets' } }
+        end,
       },
       'saadparwaiz1/cmp_luasnip',
 
@@ -811,6 +889,9 @@ require('lazy').setup({
       'hrsh7th/cmp-nvim-lsp',
       'hrsh7th/cmp-path',
       'hrsh7th/cmp-nvim-lsp-signature-help',
+      'lukas-reineke/cmp-under-comparator', -- 更智能的排序
+      'tzachar/fuzzy.nvim',
+      'tzachar/cmp-fuzzy-buffer', -- 模糊匹配支持
     },
     config = function()
       -- See `:help cmp`
@@ -845,6 +926,10 @@ require('lazy').setup({
           --  This will expand snippets if the LSP sent a snippet.
           ['<C-y>'] = cmp.mapping.confirm { select = true },
 
+          ['<CR>'] = function(fallback)
+            fallback() -- 完全不处理补全菜单，直接执行默认行为
+          end,
+
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
           --['<CR>'] = cmp.mapping.confirm { select = true },
@@ -854,7 +939,7 @@ require('lazy').setup({
           -- Manually trigger a completion from nvim-cmp.
           --  Generally you don't need this, because nvim-cmp will display
           --  completions whenever it has completion options available.
-          ['<C-Space>'] = cmp.mapping.complete {},
+          ['<C-m>'] = cmp.mapping.complete {},
 
           -- Think of <c-l> as moving to the right of your snippet expansion.
           --  So if you have a snippet that's like:
@@ -884,10 +969,26 @@ require('lazy').setup({
             -- set group index to 0 to skip loading LuaLS completions as lazydev recommends it
             group_index = 0,
           },
-          { name = 'nvim_lsp' },
-          { name = 'luasnip' },
-          { name = 'path' },
-          { name = 'nvim_lsp_signature_help' },
+          { name = 'nvim_lsp', priority = 1000 },
+          { name = 'luasnip', priority = 800 },
+          { name = 'path', priority = 700 },
+          { name = 'nvim_lsp_signature_help', priority = 700 },
+          { name = 'fuzzy_buffer', priority = 700 },
+        },
+        sorting = {
+          priority_weight = 2,
+          comparators = {
+            cmp.config.compare.score,
+            cmp.config.compare.offset,
+            cmp.config.compare.exact,
+            cmp.config.compare.recently_used,
+            require 'cmp_fuzzy_buffer.compare',
+            require('cmp-under-comparator').under,
+            cmp.config.compare.kind,
+            cmp.config.compare.sort_text,
+            cmp.config.compare.length,
+            cmp.config.compare.order,
+          },
         },
       }
     end,
@@ -906,6 +1007,12 @@ require('lazy').setup({
         styles = {
           comments = { italic = false }, -- Disable italics in comments
         },
+        on_highlights = function(hl, c)
+          hl.Cursor = {
+            fg = c.bg,
+            bg = '#ffcc00', -- 高亮色
+          }
+        end,
       }
 
       -- Load the colorscheme here.
@@ -939,7 +1046,7 @@ require('lazy').setup({
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
       --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
+      --[[ local statusline = require 'mini.statusline'
       -- set use_icons to true if you have a Nerd Font
       statusline.setup { use_icons = vim.g.have_nerd_font }
 
@@ -949,7 +1056,7 @@ require('lazy').setup({
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_location = function()
         return '%2l:%-2v'
-      end
+      end ]]
 
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
@@ -1001,7 +1108,7 @@ require('lazy').setup({
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!

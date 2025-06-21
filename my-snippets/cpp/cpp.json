@@ -1,0 +1,40 @@
+{
+    "main() template": {
+        "prefix": "main",
+        "body": [
+            "int main(int argc, char *argv[])",
+            "{$0",
+            "\treturn 0;",
+            "}"
+        ],
+        "description": "Standard main() snippet"
+    },
+    "Starter Template": {
+        "prefix": "st",
+        "body": [
+            "#include <iostream>",
+            "",
+            "int main(int argc, char *argv[]) {",
+            "\t$1",
+            "",
+            "\treturn 0;",
+            "}"
+        ],
+        "description": "Standard starter template for a tiny C++ program"
+    },
+    "Starter Template With STD": {
+        "prefix": "ststd",
+        "body": [
+            "#include <iostream>",
+            "",
+            "using namespace std;",
+            "",
+            "int main(int argc, char *argv[]) {",
+            "\t$1",
+            "",
+            "\treturn 0;",
+            "}"
+        ],
+        "description": "Standard starter template for a tiny C++ program"
+    }
+}
